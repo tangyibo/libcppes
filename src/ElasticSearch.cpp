@@ -98,8 +98,20 @@ bool ElasticSearch::deleteDocument(const char* index, const char* type, const ch
     
     if (!Json::Reader().parse(output, msg) || msg.empty())
         EXCEPTION(output);
-    
-    return msg.isMember("found")  && msg["found"].asBool();
+
+    if(msg.isMember("found")  && msg["found"].asBool())
+            return true;
+
+    if(msg.isMember("result") && msg["result"].isString() && msg["result"].asString()=="deleted")
+            return true;
+
+    if (_debug) 
+    {   
+            std::cout << "[Request]:(GET)" << oss.str() << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
+    } 
+
+    return false;
 }
 
 /// Delete the document by index/type.
@@ -534,27 +546,94 @@ bool ElasticSearch::initScroll(std::string& scrollId, const std::string& index, 
     if (!Json::Reader().parse(output, msg))
         EXCEPTION(output);
 
-    scrollId = msg["_scroll_id"].asString();
+    if(msg.isMember("error") && msg["error"].isString())
+    {
+            if (_debug) 
+            {   
+                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+                    std::cout << "[Data]" << query << std::endl;
+                    std::cout << "[Response]:" << output << std::endl;
+            } 
+
+            EXCEPTION(msg["error"].asString());
+    }
+
+    if(msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
+    {
+            if (_debug) 
+            {   
+                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+                    std::cout << "[Data]" << query << std::endl;
+                    std::cout << "[Response]:" << output << std::endl;
+            } 
+
+            EXCEPTION(msg["error"]["reason"].asString());
+    }
+
+    if(msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
+    {
+            scrollId = msg["_scroll_id"].asString();
+    }
+    else
+    {
+            if (_debug) 
+            {   
+                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+                    std::cout << "[Data]" << query << std::endl;
+                    std::cout << "[Response]:" << output << std::endl;
+            } 
+
+            EXCEPTION("scrool response json no filed [_scroll_id]!");
+    }
+
     return true;
 }
 
 bool ElasticSearch::scrollNext(std::string& scrollId, Json::Value& resultArray) 
 {
-    std::ostringstream oss;
-    oss << _url_prefix << "/_search/scroll?scroll=1m";
-    
-     std::string output;
-    if (0 != _http.post(oss.str(), scrollId.c_str(), output))
-        return false;
-     
-    Json::Value msg;
-    if (!Json::Reader().parse(output, msg))
-        EXCEPTION(output);
+        std::ostringstream oss;
+        oss << _url_prefix << "/_search/scroll?scroll=1m";
 
-    scrollId = msg["_scroll_id"].asString();
+        std::string output;
+        if (0 != _http.post(oss.str(), scrollId.c_str(), output))
+                return false;
 
-    appendHitsToArray(msg, resultArray);
-    return true;
+        Json::Value msg;
+        if (!Json::Reader().parse(output, msg))
+                EXCEPTION(output);
+
+        if(msg.isMember("error") && msg["error"].isString())
+        {
+                if (_debug) 
+                {   
+                        std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+                        std::cout << "[Data]" << scrollId << std::endl;  
+                        std::cout << "[Response]:" << output << std::endl;
+                } 
+
+                EXCEPTION(msg["error"].asString());
+        }
+
+        if(msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
+        {   
+                if (_debug) 
+                {   
+                        std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+                        std::cout << "[Data]" << scrollId << std::endl;
+                        std::cout << "[Response]:" << output << std::endl;
+                }   
+
+                EXCEPTION(msg["error"]["reason"].asString());
+        }   
+
+
+        if(msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
+                scrollId = msg["_scroll_id"].asString();
+        else
+                EXCEPTION("scrool response json no filed [_scroll_id]!");
+
+        appendHitsToArray(msg, resultArray);
+        return true;
 }
 
 void ElasticSearch::clearScroll(const std::string& scrollId) 
@@ -626,7 +705,7 @@ bool ElasticSearch::bulk(const char* data, Json::Value& jResult)
         
         EXCEPTION(output);
     }
-    
+
     return 200 == _http.http_status_code();
 }
 

@@ -14,7 +14,7 @@
 
 using namespace cppes;
 
-const char *address="http://172.16.90.210:9200/";
+const char *address="http://172.16.13.63:9200/";
 
 /*
  * 根据规划，Elastic 6.x 版只允许每个 Index 包含一个 Type，7.x 版将会彻底移除 Type。
@@ -194,14 +194,14 @@ TEST(ElasticSearch, TEST_3)
         builder.clear();
 
         sleep(2);
-        
+        /*
         std::cout << "[3]full scan all match query documents by index/type" << std::endl;
         std::string query="{\"query\":{\"match\":{\"name\":\"tang\"}}}";
         Json::Value resultArray;
         int count = es.fullScan("hadoop", "hdfs", query, resultArray);
         ASSERT_GT(count, 0);
         ASSERT_TRUE(!resultArray.empty());
-        
+        */
         std::cout << "[4]delete index" << std::endl;
         ret = es.deleteIndex("hadoop");
         ASSERT_TRUE(ret);
