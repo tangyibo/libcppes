@@ -18,15 +18,15 @@
 
 namespace cppes {
 
-ElasticSearch::ElasticSearch(const std::string& node, bool readOnly,bool debug)
+ElasticSearch::ElasticSearch(const std::string& node, bool readOnly, bool debug)
 : _url_prefix(node)
 , _http()
 , _readOnly(readOnly)
-,_debug(debug)
+, _debug(debug)
 {
-    if(_url_prefix[_url_prefix.length()-1]=='/')
-        _url_prefix=_url_prefix.substr(0,_url_prefix.length()-1);
-    
+    if (_url_prefix[_url_prefix.length() - 1] == '/')
+        _url_prefix = _url_prefix.substr(0, _url_prefix.length() - 1);
+
     if (!isActive())
         EXCEPTION("Cannot connect Elasticsearch Node, database is not active.");
 }
@@ -36,10 +36,11 @@ ElasticSearch::~ElasticSearch()
 }
 
 // Test connection with node.
-bool ElasticSearch::isActive() 
+
+bool ElasticSearch::isActive()
 {
     std::string output;
-    if(0!=_http.get(_url_prefix, output))
+    if (0 != _http.get(_url_prefix, output))
         return false;
 
     Json::Value msg;
@@ -53,35 +54,42 @@ bool ElasticSearch::isActive()
 }
 
 // Request the document by index/type/id.
-bool ElasticSearch::getDocument(const char* index, const char* type, const char* id, Json::Value& msg) 
+
+bool ElasticSearch::getDocument(const char* index, const char* type, const char* id, Json::Value& msg)
 {
     std::ostringstream oss;
     oss << _url_prefix << "/" << index << "/" << type << "/" << id;
 
     std::string output;
-    int ret=_http.get(oss.str(), output);
-    if(0!=ret)
+    int ret = _http.get(oss.str(), output);
+    if (0 != ret)
         return false;
 
     if (!Json::Reader().parse(output, msg) || msg.empty())
         EXCEPTION(output);
+
+    if( msg.isMember("found") && msg["found"].asBool())
+        return true;
     
-    return msg.isMember("found") && msg["found"].asBool();
+    EXCEPTION(output);
+    return false;
 }
 
 // Request the document by index/type/ query key:value.
+
 bool ElasticSearch::getDocument(const std::string& index, const std::string& type, const std::string& key, const std::string& value, Json::Value& msg)
-{   
-     /*
+{
+    /*
      * 查询到的结果与ElasticSearch设置的field属性有关
      */
     std::stringstream query;
     query << "{\"query\":{\"match\":{\"" << key << "\":\"" << value << "\"}}}";
-    
-    return search(index,type,query.str(),msg);
+
+    return search(index, type, query.str(), msg);
 }
 
 /// Delete the document by index/type/id.
+
 bool ElasticSearch::deleteDocument(const char* index, const char* type, const char* id)
 {
     if (_readOnly)
@@ -90,36 +98,39 @@ bool ElasticSearch::deleteDocument(const char* index, const char* type, const ch
     std::ostringstream oss;
     oss << _url_prefix << "/" << index << "/" << type << "/" << id;
     Json::Value msg;
-    
+
     std::string output;
-    int ret = _http.remove(oss.str(),"", output);
+    int ret = _http.remove(oss.str(), "", output);
     if (0 != ret)
         return false;
-    
+
     if (!Json::Reader().parse(output, msg) || msg.empty())
         EXCEPTION(output);
 
-    if(msg.isMember("found")  && msg["found"].asBool())
-            return true;
+    if (msg.isMember("found") && msg["found"].asBool())
+        return true;
 
-    if(msg.isMember("result") && msg["result"].isString() && msg["result"].asString()=="deleted")
-            return true;
+    if (msg.isMember("result") && msg["result"].isString() && msg["result"].asString() == "deleted")
+        return true;
 
-    if (_debug) 
-    {   
-            std::cout << "[Request]:(GET)" << oss.str() << std::endl;
-            std::cout << "[Response]:" << output << std::endl;
-    } 
+    if (_debug)
+    {
+        std::cout << "[Request]:(GET)" << oss.str() << std::endl;
+        std::cout << "[Response]:" << output << std::endl;
+        
+        EXCEPTION(output);
+    }
 
     return false;
 }
 
 /// Delete the document by index/type.
+
 bool ElasticSearch::deleteAll(const char* index, const char* type)
 {
     if (_readOnly)
         return false;
-    
+
     /*
      * ElasticSearch在2.0 以上的不支持批量删除
      * 数据了，必须安装插件 delete-by-query才能
@@ -129,20 +140,25 @@ bool ElasticSearch::deleteAll(const char* index, const char* type)
     std::ostringstream oss, data;
     oss << _url_prefix << "/" << index << "/" << type << "/_query";
     data << "{\"query\":{\"match_all\": {}}}";
-    
+
     Json::Value msg;
     std::string output;
-    int ret=_http.remove(oss.str(), data.str().c_str(), output);
-    if(0!=ret)
+    int ret = _http.remove(oss.str(), data.str().c_str(), output);
+    if (0 != ret)
         return false;
-    
+
     if (!Json::Reader().parse(output, msg) || msg.empty())
         EXCEPTION(output);
 
-    return msg.isMember("found")  && msg["found"].asBool();
+    if(msg.isMember("found") && msg["found"].asBool())
+        return true;
+    
+    EXCEPTION(output);
+    return false;
 }
 
 // Request the document number of type T in index I.
+
 int ElasticSearch::getDocumentCount(const char* index, const char* type)
 {
     std::ostringstream oss;
@@ -150,10 +166,10 @@ int ElasticSearch::getDocumentCount(const char* index, const char* type)
 
     Json::Value msg;
     std::string output;
-    int ret=_http.get(oss.str(), output);
-    if(0!=ret)
+    int ret = _http.get(oss.str(), output);
+    if (0 != ret)
         return 0;
-  
+
     if (!Json::Reader().parse(output, msg) || msg.empty())
         EXCEPTION(output);
 
@@ -161,7 +177,7 @@ int ElasticSearch::getDocumentCount(const char* index, const char* type)
     if (msg.isMember("count") && msg["count"].isInt())
         count = msg["count"].asInt();
 
-    if (0 == count && _debug) 
+    if (0 == count && _debug)
     {
         std::cout << "[Request]:(GET)" << oss.str() << std::endl;
         std::cout << "[Response]:" << output << std::endl;
@@ -171,6 +187,7 @@ int ElasticSearch::getDocumentCount(const char* index, const char* type)
 }
 
 // Test if document exists
+
 bool ElasticSearch::exist(const std::string& index, const std::string& type, const std::string& id)
 {
     std::stringstream oss;
@@ -185,21 +202,26 @@ bool ElasticSearch::exist(const std::string& index, const std::string& type, con
     if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
 
-    if (!result.isMember("found")) 
+    if (!result.isMember("found"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(GET)" << oss.str() << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("Database exception, field \"found\" must exist.");
     }
 
-    return result["found"].asBool();
+    if(result["found"].asBool())
+        return true;
+    
+    //EXCEPTION(output);
+    return false;
 }
 
 /// Index a document.
+
 bool ElasticSearch::index(const std::string& index, const std::string& type, const std::string& id, const Json::Value& jData)
 {
     if (_readOnly)
@@ -208,7 +230,7 @@ bool ElasticSearch::index(const std::string& index, const std::string& type, con
     std::stringstream oss;
     oss << _url_prefix << "/" << index << "/" << type << "/" << id;
 
-    std::string data=Json::FastWriter().write(jData);
+    std::string data = Json::FastWriter().write(jData);
 
     std::string output;
     int ret = _http.put(oss.str(), data.c_str(), output);
@@ -222,13 +244,13 @@ bool ElasticSearch::index(const std::string& index, const std::string& type, con
     if (result.isMember("reason"))
         EXCEPTION(result["reason"].asString());
 
-    if ( result.isMember("error") && result["error"].isString() )
+    if (result.isMember("error") && result["error"].isString())
         EXCEPTION(result["error"].asString());
 
     if (result.isMember("_version") || result.isMember("created"))
         return true;
 
-    if (_debug) 
+    if (_debug)
     {
         std::cout << "[Request]:(PUT)" << oss.str() << std::endl;
         std::cout << "[Data]" << Json::FastWriter().write(jData) << std::endl;
@@ -241,6 +263,7 @@ bool ElasticSearch::index(const std::string& index, const std::string& type, con
 }
 
 /// Index a document with automatic id creation
+
 std::string ElasticSearch::index(const std::string& index, const std::string& type, const Json::Value& jData)
 {
     if (_readOnly)
@@ -253,46 +276,46 @@ std::string ElasticSearch::index(const std::string& index, const std::string& ty
 
     Json::Value result;
     std::string output;
-    int ret=_http.post(oss.str(), data, output);
+    int ret = _http.post(oss.str(), data, output);
     if (0 != ret)
         return "";
 
     if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
-    
+
     if (result.isMember("reason"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << Json::FastWriter().write(jData) << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION(result["reason"].asString());
     }
 
     if (result.isMember("error") && result["error"].isString())
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << Json::FastWriter().write(jData) << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION(result["error"].asString());
     }
 
     if (!result.isMember("_id") || !result["_id"].isString())
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << Json::FastWriter().write(jData) << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-    
+
         EXCEPTION("The index induces error.");
     }
 
@@ -300,6 +323,7 @@ std::string ElasticSearch::index(const std::string& index, const std::string& ty
 }
 
 // Update a document field.
+
 bool ElasticSearch::update(const std::string& index, const std::string& type, const std::string& id, const std::string& key, const std::string& value)
 {
     if (_readOnly)
@@ -313,22 +337,22 @@ bool ElasticSearch::update(const std::string& index, const std::string& type, co
 
     Json::Value result;
     std::string output;
-    int ret=_http.post(oss.str(), data.str().c_str(), output);
+    int ret = _http.post(oss.str(), data.str().c_str(), output);
     if (0 != ret)
         return false;
 
     if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
-    
+
     if (!result.isMember("_version"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << data.str() << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("The update failed.");
     }
 
@@ -336,6 +360,7 @@ bool ElasticSearch::update(const std::string& index, const std::string& type, co
 }
 
 // Update doccument fields.
+
 bool ElasticSearch::update(const std::string& index, const std::string& type, const std::string& id, const Json::Value& jData)
 {
     if (_readOnly)
@@ -349,7 +374,7 @@ bool ElasticSearch::update(const std::string& index, const std::string& type, co
 
     Json::Value result;
     std::string output;
-    int ret=_http.post(oss.str(), data.str().c_str(), output);
+    int ret = _http.post(oss.str(), data.str().c_str(), output);
     if (0 != ret)
         return false;
 
@@ -358,13 +383,13 @@ bool ElasticSearch::update(const std::string& index, const std::string& type, co
 
     if (result.isMember("error"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << data.str() << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("The update doccument fields failed.");
     }
 
@@ -372,6 +397,7 @@ bool ElasticSearch::update(const std::string& index, const std::string& type, co
 }
 
 // Update or insert if the document does not already exists.
+
 bool ElasticSearch::upsert(const std::string& index, const std::string& type, const std::string& id, const Json::Value& jData)
 {
     if (_readOnly)
@@ -395,13 +421,13 @@ bool ElasticSearch::upsert(const std::string& index, const std::string& type, co
 
     if (result.isMember("error"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << data.str() << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("The update doccument fields failed.");
     }
 
@@ -409,60 +435,62 @@ bool ElasticSearch::upsert(const std::string& index, const std::string& type, co
 }
 
 /// Search API of ES.
+
 int ElasticSearch::search(const std::string& index, const std::string& type, const std::string& query, Json::Value& result)
 {
     std::stringstream oss;
     oss << _url_prefix << "/" << index << "/" << type << "/_search";
 
     std::string output;
-    int ret=_http.post(oss.str(), query.c_str(), output);
+    int ret = _http.post(oss.str(), query.c_str(), output);
     if (0 != ret)
         return 0;
-            
+
     if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
 
     if (!result.isMember("timed_out"))
-    {       
-        if (_debug) 
+    {
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << query << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("Search failed.");
     }
 
     if (result["timed_out"].asBool())
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << query << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("Search timed out.");
     }
-    
-    if(!result.isMember("hits") || !result["hits"].isMember("hits"))
+
+    if (!result.isMember("hits") || !result["hits"].isMember("hits"))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]" << query << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION("Search reuslt wrong format.");
     }
-    
+
     return int(result["hits"]["hits"].size());
 }
 
 // Test if index exists
-bool ElasticSearch::existIndex(const std::string& index , Json::Value& result)
+
+bool ElasticSearch::existIndex(const std::string& index, Json::Value& result)
 {
     std::ostringstream oss;
     oss << _url_prefix << "/" << index;
@@ -472,22 +500,27 @@ bool ElasticSearch::existIndex(const std::string& index , Json::Value& result)
     if (0 != ret)
         return false;
 
-    if (!Json::Reader().parse(output, result) || result.empty() )
+    if (!Json::Reader().parse(output, result) || result.empty())
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(HEAD)" << oss.str() << std::endl;
             std::cout << "[Response]:" << output << std::endl;
-            
+
             EXCEPTION(output);
         }
     }
+
+    if (200 == _http.http_status_code())
+        return true;
     
-    return 200==_http.http_status_code();
+    EXCEPTION(output);
+    return false;
 }
 
 // Create index, optionally with data (settings, mappings etc)
-bool ElasticSearch::createIndex(const std::string& index, const char* data) 
+
+bool ElasticSearch::createIndex(const std::string& index, const char* data)
 {
     std::ostringstream oss;
     oss << _url_prefix << "/" << index;
@@ -501,10 +534,15 @@ bool ElasticSearch::createIndex(const std::string& index, const char* data)
     if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
 
-    return 200==_http.http_status_code();
+    if( 200 == _http.http_status_code())
+        return true;
+    
+    EXCEPTION(output);
+    return false;
 }
 
 // Delete given index (and all types, documents, mappings)
+
 bool ElasticSearch::deleteIndex(const std::string& index)
 {
     std::ostringstream oss;
@@ -516,13 +554,18 @@ bool ElasticSearch::deleteIndex(const std::string& index)
         return false;
 
     Json::Value result;
-    if (!Json::Reader().parse(output, result)|| result.empty())
+    if (!Json::Reader().parse(output, result) || result.empty())
         EXCEPTION(output);
 
-    return 200==_http.http_status_code();
+    if( 200 == _http.http_status_code())
+        return true;
+    
+    EXCEPTION(output);
+    return false;
 }
 
 // Refresh the index.
+
 void ElasticSearch::refresh(const std::string& index)
 {
     std::ostringstream oss;
@@ -546,97 +589,97 @@ bool ElasticSearch::initScroll(std::string& scrollId, const std::string& index, 
     if (!Json::Reader().parse(output, msg))
         EXCEPTION(output);
 
-    if(msg.isMember("error") && msg["error"].isString())
+    if (msg.isMember("error") && msg["error"].isString())
     {
-            if (_debug) 
-            {   
-                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
-                    std::cout << "[Data]" << query << std::endl;
-                    std::cout << "[Response]:" << output << std::endl;
-            } 
+        if (_debug)
+        {
+            std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+            std::cout << "[Data]" << query << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
+        }
 
-            EXCEPTION(msg["error"].asString());
+        EXCEPTION(msg["error"].asString());
     }
 
-    if(msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
+    if (msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
     {
-            if (_debug) 
-            {   
-                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
-                    std::cout << "[Data]" << query << std::endl;
-                    std::cout << "[Response]:" << output << std::endl;
-            } 
+        if (_debug)
+        {
+            std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+            std::cout << "[Data]" << query << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
+        }
 
-            EXCEPTION(msg["error"]["reason"].asString());
+        EXCEPTION(msg["error"]["reason"].asString());
     }
 
-    if(msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
+    if (msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
     {
-            scrollId = msg["_scroll_id"].asString();
+        scrollId = msg["_scroll_id"].asString();
     }
     else
     {
-            if (_debug) 
-            {   
-                    std::cout << "[Request]:(POST)" << oss.str() << std::endl;
-                    std::cout << "[Data]" << query << std::endl;
-                    std::cout << "[Response]:" << output << std::endl;
-            } 
+        if (_debug)
+        {
+            std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+            std::cout << "[Data]" << query << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
+        }
 
-            EXCEPTION("scrool response json no filed [_scroll_id]!");
+        EXCEPTION("scrool response json no filed [_scroll_id]!");
     }
 
     return true;
 }
 
-bool ElasticSearch::scrollNext(std::string& scrollId, Json::Value& resultArray) 
+bool ElasticSearch::scrollNext(std::string& scrollId, Json::Value& resultArray)
 {
-        std::ostringstream oss;
-        oss << _url_prefix << "/_search/scroll?scroll=1m";
+    std::ostringstream oss;
+    oss << _url_prefix << "/_search/scroll?scroll=1m";
 
-        std::string output;
-        if (0 != _http.post(oss.str(), scrollId.c_str(), output))
-                return false;
+    std::string output;
+    if (0 != _http.post(oss.str(), scrollId.c_str(), output))
+        return false;
 
-        Json::Value msg;
-        if (!Json::Reader().parse(output, msg))
-                EXCEPTION(output);
+    Json::Value msg;
+    if (!Json::Reader().parse(output, msg))
+        EXCEPTION(output);
 
-        if(msg.isMember("error") && msg["error"].isString())
+    if (msg.isMember("error") && msg["error"].isString())
+    {
+        if (_debug)
         {
-                if (_debug) 
-                {   
-                        std::cout << "[Request]:(POST)" << oss.str() << std::endl;
-                        std::cout << "[Data]" << scrollId << std::endl;  
-                        std::cout << "[Response]:" << output << std::endl;
-                } 
-
-                EXCEPTION(msg["error"].asString());
+            std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+            std::cout << "[Data]" << scrollId << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
         }
 
-        if(msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
-        {   
-                if (_debug) 
-                {   
-                        std::cout << "[Request]:(POST)" << oss.str() << std::endl;
-                        std::cout << "[Data]" << scrollId << std::endl;
-                        std::cout << "[Response]:" << output << std::endl;
-                }   
+        EXCEPTION(msg["error"].asString());
+    }
 
-                EXCEPTION(msg["error"]["reason"].asString());
-        }   
+    if (msg.isMember("error") && msg["error"].isObject() && msg["error"].isMember("reason") && msg["error"]["reason"].isString())
+    {
+        if (_debug)
+        {
+            std::cout << "[Request]:(POST)" << oss.str() << std::endl;
+            std::cout << "[Data]" << scrollId << std::endl;
+            std::cout << "[Response]:" << output << std::endl;
+        }
+
+        EXCEPTION(msg["error"]["reason"].asString());
+    }
 
 
-        if(msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
-                scrollId = msg["_scroll_id"].asString();
-        else
-                EXCEPTION("scrool response json no filed [_scroll_id]!");
+    if (msg.isMember("_scroll_id") && msg["_scroll_id"].isString())
+        scrollId = msg["_scroll_id"].asString();
+    else
+        EXCEPTION("scrool response json no filed [_scroll_id]!");
 
-        appendHitsToArray(msg, resultArray);
-        return true;
+    appendHitsToArray(msg, resultArray);
+    return true;
 }
 
-void ElasticSearch::clearScroll(const std::string& scrollId) 
+void ElasticSearch::clearScroll(const std::string& scrollId)
 {
     std::ostringstream oss;
     oss << _url_prefix << "/_search/scroll";
@@ -662,6 +705,9 @@ int ElasticSearch::fullScan(const std::string& index, const std::string& type, c
 
         currentSize = newSize;
     }
+    
+    clearScroll(scrollId);
+    
     return currentSize;
 }
 
@@ -673,14 +719,15 @@ void ElasticSearch::appendHitsToArray(const Json::Value& msg, Json::Value& resul
     if (!msg["hits"].isMember("hits"))
         EXCEPTION("Result corrupted, no member \"hits\" nested in \"hits\".");
 
-    const Json::Value& array=msg["hits"]["hits"];
-    for (size_t i=0;i<array.size();++i)
+    const Json::Value& array = msg["hits"]["hits"];
+    for (size_t i = 0; i < array.size(); ++i)
     {
         resultArray.append(array[i]);
     }
 }
 
 // Bulk API of ES.
+
 bool ElasticSearch::bulk(const char* data, Json::Value& jResult)
 {
     if (_readOnly)
@@ -694,19 +741,23 @@ bool ElasticSearch::bulk(const char* data, Json::Value& jResult)
     if (0 != _http.post(oss.str(), std::string(data), output))
         return false;
 
-    if (!Json::Reader().parse(output, jResult)) 
+    if (!Json::Reader().parse(output, jResult))
     {
-        if (_debug) 
+        if (_debug)
         {
             std::cout << "[Request]:(POST)" << oss.str() << std::endl;
             std::cout << "[Data]:" << data << std::endl;
             std::cout << "[Response]:" << output << std::endl;
         }
-        
+
         EXCEPTION(output);
     }
 
-    return 200 == _http.http_status_code();
+    if( 200 == _http.http_status_code())
+        return true;
+    
+    EXCEPTION(output);
+    return false;    
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -722,13 +773,13 @@ void BulkBuilder::createCommand(const std::string &op, const std::string &index,
 
     if (id != "")
     {
-        commandParams["_id"]= id;
+        commandParams["_id"] = id;
     }
 
-    commandParams["_index"]= index;
-    commandParams["_type"]= type;
+    commandParams["_index"] = index;
+    commandParams["_type"] = type;
 
-    command[op]=commandParams;
+    command[op] = commandParams;
     operations.push_back(command);
 }
 
@@ -767,8 +818,8 @@ void BulkBuilder::upsert(const std::string &index, const std::string &type, cons
     createCommand("update", index, type, id);
 
     Json::Value updateFields;
-    updateFields["doc"]=fields;
-    updateFields["doc_as_upsert"]= upsert;
+    updateFields["doc"] = fields;
+    updateFields["doc_as_upsert"] = upsert;
 
     operations.push_back(updateFields);
 }
@@ -782,13 +833,13 @@ std::string BulkBuilder::str()
 {
     std::stringstream json;
 
-    for (size_t i=0;i<operations.size();++i)
+    for (size_t i = 0; i < operations.size(); ++i)
     {
-        std::string item=Json::FastWriter().write(operations[i]);
+        std::string item = Json::FastWriter().write(operations[i]);
         json << item;
-        
-        if(item[item.length()-1]!='\n')
-            json<<std::endl;
+
+        if (item[item.length() - 1] != '\n')
+            json << std::endl;
     }
 
     return json.str();
